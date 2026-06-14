@@ -1,11 +1,30 @@
+import { useEffect, useState } from 'react'
 import './App.css'
+import { getApiHealth } from './api/health'
+
+type ApiStatus = 'loading' | 'connected' | 'unavailable'
 
 function App() {
+  const [apiStatus, setApiStatus] = useState<ApiStatus>('loading')
+
+  useEffect(() => {
+    getApiHealth()
+      .then(() => setApiStatus('connected'))
+      .catch(() => setApiStatus('unavailable'))
+  }, [])
+
   return (
     <main className="landing-page">
       <section className="hero">
         <p className="eyebrow">Domain-Specific Knowledge Agents</p>
-
+        
+        <div className={`api-status api-status--${apiStatus}`}>
+          <span aria-hidden="true" />
+          {apiStatus === 'loading' && 'Connexion à l’API…'}
+          {apiStatus === 'connected' && 'API connectée'}
+          {apiStatus === 'unavailable' && 'API indisponible'}
+        </div>
+        
         <h1>Transformez vos connaissances en actions fiables.</h1>
 
         <p className="hero-description">
