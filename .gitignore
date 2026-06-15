@@ -7,3 +7,4 @@ __pycache__/
 # Editors and operating systems
 .vscode/
 .DS_Store
+.env
