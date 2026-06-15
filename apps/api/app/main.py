@@ -5,13 +5,17 @@ from sqlalchemy.orm import Session
 from .database import get_database_session
 from fastapi.middleware.cors import CORSMiddleware
 
-from .repository import agent_repository
+from .repository import AgentRepository
 from .schemas import AgentCreate, AgentRead
 
 app = FastAPI(
     title="Domain-Specific Knowledge Agents API",
     version="0.1.0",
 )
+def get_agent_repository(
+    session: Session = Depends(get_database_session),
+) -> AgentRepository:
+    return AgentRepository(session)
 
 app.add_middleware(
     CORSMiddleware,
@@ -40,8 +44,10 @@ def database_health(
     }
 
 @app.get("/api/agents", response_model=list[AgentRead], tags=["agents"])
-def list_agents() -> list[AgentRead]:
-    return agent_repository.list()
+def list_agents(
+    repository: AgentRepository = Depends(get_agent_repository),
+) -> list[AgentRead]:
+    return repository.list()
 
 
 @app.post(
@@ -50,5 +56,8 @@ def list_agents() -> list[AgentRead]:
     status_code=status.HTTP_201_CREATED,
     tags=["agents"],
 )
-def create_agent(agent_data: AgentCreate) -> AgentRead:
-    return agent_repository.create(agent_data)
+def create_agent(
+    agent_data: AgentCreate,
+    repository: AgentRepository = Depends(get_agent_repository),
+) -> AgentRead:
+    return repository.create(agent_data)
