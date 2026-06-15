@@ -30,3 +30,24 @@ class AgentUpdate(BaseModel):
     description: str | None = Field(default=None, max_length=500)
     use_case: str | None = Field(default=None, min_length=3, max_length=200)
     language: str | None = Field(default=None, pattern="^(fr|en)$")
+
+class CorpusStatus(StrEnum):
+    EMPTY = "empty"
+    INDEXING = "indexing"
+    READY = "ready"
+    ERROR = "error"
+
+
+class CorpusCreate(BaseModel):
+    name: str = Field(min_length=3, max_length=100)
+    description: str = Field(default="", max_length=500)
+
+
+class CorpusRead(CorpusCreate):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    agent_id: UUID
+    status: CorpusStatus
+    created_at: datetime
+    updated_at: datetime
