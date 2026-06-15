@@ -1,3 +1,9 @@
+import { createAgent, listAgents } from './api/agents'
+import type { Agent, CreateAgentInput } from './api/agents'
+
+import { AgentList } from './components/AgentList'
+import { CreateAgentForm } from './components/CreateAgentForm'
+
 import { useEffect, useState } from 'react'
 import './App.css'
 import { getApiHealth } from './api/health'
@@ -6,13 +12,34 @@ type ApiStatus = 'loading' | 'connected' | 'unavailable'
 
 function App() {
   const [apiStatus, setApiStatus] = useState<ApiStatus>('loading')
+  const [agents, setAgents] = useState<Agent[]>([])
+  const [agentsError, setAgentsError] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
     getApiHealth()
       .then(() => setApiStatus('connected'))
       .catch(() => setApiStatus('unavailable'))
+
+    listAgents()
+      .then(setAgents)
+      .catch(() => setAgentsError('Impossible de charger les agents.'))
   }, [])
 
+  async function handleCreateAgent(agentInput: CreateAgentInput) {
+    setIsSubmitting(true)
+    setAgentsError('')
+
+    try {
+      const createdAgent = await createAgent(agentInput)
+      setAgents((currentAgents) => [...currentAgents, createdAgent])
+    } catch {
+      setAgentsError('Impossible de créer l’agent.')
+      throw new Error('Agent creation failed')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
   return (
     <main className="landing-page">
       <section className="hero">
@@ -53,6 +80,27 @@ function App() {
             lorsque la situation l'exige.
           </p>
         </article>
+      </section>
+      <section className="agents-section" aria-labelledby="agents-title">
+        <div className="agents-section__header">
+          <div>
+            <p className="eyebrow">Première ressource métier</p>
+            <h2 id="agents-title">Vos agents</h2>
+          </div>
+
+          <p>{agents.length} agent(s)</p>
+        </div>
+
+        {agentsError && <p className="error-message">{agentsError}</p>}
+
+        <div className="agents-workspace">
+          <CreateAgentForm
+            isSubmitting={isSubmitting}
+            onSubmit={handleCreateAgent}
+          />
+
+          <AgentList agents={agents} />
+        </div>
       </section>
     </main>
   )
