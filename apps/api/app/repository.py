@@ -13,5 +13,8 @@ class InMemoryAgentRepository:
         self._agents.append(agent)
         return agent
 
+    def clear(self) -> None:
+        self._agents.clear()
+
 
 agent_repository = InMemoryAgentRepository()
