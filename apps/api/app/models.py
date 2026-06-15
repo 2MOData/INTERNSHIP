@@ -51,3 +51,33 @@ class CorpusModel(Base):
     )
 
     agent: Mapped["AgentModel"] = relationship(back_populates="corpora")
+    sources: Mapped[list["SourceModel"]] = relationship(
+        back_populates="corpus",
+        cascade="all, delete-orphan",
+    )
+
+class SourceModel(Base):
+    __tablename__ = "sources"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    corpus_id: Mapped[UUID] = mapped_column(
+        ForeignKey("corpora.id", ondelete="CASCADE"),
+        index=True,
+    )
+    source_type: Mapped[str] = mapped_column(String(20), default="pdf")
+    original_filename: Mapped[str] = mapped_column(String(255))
+    content_type: Mapped[str] = mapped_column(String(100))
+    size_bytes: Mapped[int]
+    storage_key: Mapped[str] = mapped_column(String(500), unique=True)
+    status: Mapped[str] = mapped_column(String(30), default="uploaded")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    corpus: Mapped["CorpusModel"] = relationship(back_populates="sources")

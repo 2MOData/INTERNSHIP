@@ -51,3 +51,23 @@ class CorpusRead(CorpusCreate):
     status: CorpusStatus
     created_at: datetime
     updated_at: datetime
+
+class SourceStatus(StrEnum):
+    UPLOADED = "uploaded"
+    PROCESSING = "processing"
+    READY = "ready"
+    ERROR = "error"
+
+
+class SourceRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    corpus_id: UUID
+    source_type: str
+    original_filename: str
+    content_type: str
+    size_bytes: int
+    status: SourceStatus
+    created_at: datetime
+    updated_at: datetime
