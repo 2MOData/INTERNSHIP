@@ -1,4 +1,8 @@
-from fastapi import FastAPI, status
+from fastapi import Depends, FastAPI, status
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
+from .database import get_database_session
 from fastapi.middleware.cors import CORSMiddleware
 
 from .repository import agent_repository
@@ -22,6 +26,17 @@ def health() -> dict[str, str]:
     return {
         "status": "ok",
         "service": "agents-api",
+    }
+
+@app.get("/database/health", tags=["system"])
+def database_health(
+    session: Session = Depends(get_database_session),
+) -> dict[str, str]:
+    session.execute(text("SELECT 1"))
+
+    return {
+        "status": "ok",
+        "service": "postgresql",
     }
 
 @app.get("/api/agents", response_model=list[AgentRead], tags=["agents"])
