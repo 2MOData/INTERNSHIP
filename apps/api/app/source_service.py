@@ -1,9 +1,16 @@
+from collections.abc import Callable
 from pathlib import Path
 from uuid import UUID, uuid4
 
 from .document_storage import LocalDocumentStorage
-from .source_repository import SourceRepository
 from .models import SourceModel
+from .pdf_extractor import (
+    EmptyPdfTextError,
+    ExtractedPdfPage,
+    InvalidPdfDocumentError,
+    extract_pdf_text,
+)
+from .source_repository import SourceRepository
 
 
 class InvalidPdfError(ValueError):
@@ -18,16 +25,21 @@ class FileTooLargeError(ValueError):
     pass
 
 
+PdfExtractor = Callable[[str | Path], list[ExtractedPdfPage]]
+
+
 class PdfSourceService:
     def __init__(
         self,
         repository: SourceRepository,
         storage: LocalDocumentStorage,
         max_upload_size_bytes: int,
+        pdf_extractor: PdfExtractor = extract_pdf_text,
     ) -> None:
         self._repository = repository
         self._storage = storage
         self._max_upload_size_bytes = max_upload_size_bytes
+        self._pdf_extractor = pdf_extractor
 
     def upload(
         self,
@@ -48,7 +60,7 @@ class PdfSourceService:
         self._storage.save(storage_key, content)
 
         try:
-            return self._repository.create_pdf(
+            source = self._repository.create_pdf(
                 corpus_id=corpus_id,
                 original_filename=Path(original_filename).name,
                 content_type=content_type,
@@ -58,6 +70,15 @@ class PdfSourceService:
         except Exception:
             self._storage.delete(storage_key)
             raise
+
+        try:
+            pages = self._pdf_extractor(self._storage.path_for(storage_key))
+            return self._repository.save_pages(
+                source_id=source.id,
+                pages=pages,
+            )
+        except (EmptyPdfTextError, InvalidPdfDocumentError):
+            return self._repository.mark_error(source.id)
 
     def _validate(
         self,

@@ -10,6 +10,7 @@ from sqlalchemy.pool import StaticPool
 from app.database import Base, get_database_session
 from app.document_storage import LocalDocumentStorage
 from app.main import app, get_pdf_source_service
+from app.pdf_extractor import ExtractedPdfPage
 from app.source_repository import SourceRepository
 from app.source_service import PdfSourceService
 
@@ -56,13 +57,16 @@ def client(
                 repository=SourceRepository(session),
                 storage=LocalDocumentStorage(str(document_storage_path)),
                 max_upload_size_bytes=1024 * 1024,
+                pdf_extractor=lambda path: [
+                    ExtractedPdfPage(
+                        page_number=1,
+                        text="Texte extrait du PDF de test.",
+                    )
+                ],
             )
-    app.dependency_overrides[get_database_session] = (
-        override_database_session
-    )
-    app.dependency_overrides[get_pdf_source_service] = (
-        override_pdf_source_service
-    )
+
+    app.dependency_overrides[get_database_session] = override_database_session
+    app.dependency_overrides[get_pdf_source_service] = override_pdf_source_service
 
     with TestClient(app) as test_client:
         yield test_client
