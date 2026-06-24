@@ -17,7 +17,7 @@ from .schemas import CorpusCreate, CorpusRead
 
 from .config import get_settings
 from .document_storage import LocalDocumentStorage
-from .schemas import SourceRead
+from .schemas import SourcePageRead, SourceRead
 from .source_repository import (
     CorpusNotFoundForSourceError,
     SourceNotFoundError,
@@ -35,10 +35,12 @@ app = FastAPI(
     version="0.1.0",
 )
 
+
 def get_agent_repository(
     session: Session = Depends(get_database_session),
 ) -> AgentRepository:
     return AgentRepository(session)
+
 
 def agent_not_found_http_exception() -> HTTPException:
     return HTTPException(
@@ -46,10 +48,12 @@ def agent_not_found_http_exception() -> HTTPException:
         detail="Agent introuvable.",
     )
 
+
 def get_corpus_repository(
     session: Session = Depends(get_database_session),
 ) -> CorpusRepository:
     return CorpusRepository(session)
+
 
 def corpus_not_found_http_exception() -> HTTPException:
     return HTTPException(
@@ -63,6 +67,7 @@ def agent_not_found_for_corpus_http_exception() -> HTTPException:
         status_code=status.HTTP_404_NOT_FOUND,
         detail="Agent introuvable.",
     )
+
 
 def get_source_repository(
     session: Session = Depends(get_database_session),
@@ -81,6 +86,7 @@ def get_pdf_source_service(
         max_upload_size_bytes=settings.max_upload_size_bytes,
     )
 
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],
@@ -89,12 +95,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {
         "status": "ok",
         "service": "agents-api",
     }
+
 
 @app.get("/database/health", tags=["system"])
 def database_health(
@@ -107,11 +115,13 @@ def database_health(
         "service": "postgresql",
     }
 
+
 @app.get("/api/agents", response_model=list[AgentRead], tags=["agents"])
 def list_agents(
     repository: AgentRepository = Depends(get_agent_repository),
 ) -> list[AgentRead]:
     return repository.list()
+
 
 @app.get(
     "/api/agents/{agent_id}",
@@ -127,6 +137,7 @@ def get_agent(
     except AgentNotFoundError as error:
         raise agent_not_found_http_exception() from error
 
+
 @app.get(
     "/api/agents/{agent_id}/corpora",
     response_model=list[CorpusRead],
@@ -141,6 +152,7 @@ def list_agent_corpora(
     except AgentNotFoundForCorpusError as error:
         raise agent_not_found_for_corpus_http_exception() from error
 
+
 @app.get(
     "/api/corpora/{corpus_id}",
     response_model=CorpusRead,
@@ -154,6 +166,7 @@ def get_corpus(
         return repository.get(corpus_id)
     except CorpusNotFoundError as error:
         raise corpus_not_found_http_exception() from error
+
 
 @app.get(
     "/api/corpora/{corpus_id}/sources",
@@ -171,7 +184,8 @@ def list_corpus_sources(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Corpus introuvable.",
         ) from error
-        
+
+
 @app.get(
     "/api/sources/{source_id}",
     response_model=SourceRead,
@@ -189,6 +203,25 @@ def get_source(
             detail="Source introuvable.",
         ) from error
 
+
+@app.get(
+    "/api/sources/{source_id}/pages",
+    response_model=list[SourcePageRead],
+    tags=["sources"],
+)
+def list_source_pages(
+    source_id: UUID,
+    repository: SourceRepository = Depends(get_source_repository),
+) -> list[SourcePageRead]:
+    try:
+        return repository.list_pages(source_id)
+    except SourceNotFoundError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Source introuvable.",
+        ) from error
+
+
 @app.post(
     "/api/agents",
     response_model=AgentRead,
@@ -200,6 +233,7 @@ def create_agent(
     repository: AgentRepository = Depends(get_agent_repository),
 ) -> AgentRead:
     return repository.create(agent_data)
+
 
 @app.post(
     "/api/agents/{agent_id}/publish",
@@ -214,6 +248,7 @@ def publish_agent(
         return repository.publish(agent_id)
     except AgentNotFoundError as error:
         raise agent_not_found_http_exception() from error
+
 
 @app.post(
     "/api/agents/{agent_id}/corpora",
@@ -230,6 +265,7 @@ def create_agent_corpus(
         return repository.create_for_agent(agent_id, corpus_data)
     except AgentNotFoundForCorpusError as error:
         raise agent_not_found_for_corpus_http_exception() from error
+
 
 @app.post(
     "/api/corpora/{corpus_id}/sources/pdf",
@@ -274,6 +310,7 @@ async def upload_pdf_source(
     finally:
         await file.close()
 
+
 @app.patch(
     "/api/agents/{agent_id}",
     response_model=AgentRead,
@@ -288,4 +325,3 @@ def update_agent(
         return repository.update(agent_id, agent_data)
     except AgentNotFoundError as error:
         raise agent_not_found_http_exception() from error
-

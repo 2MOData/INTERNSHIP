@@ -62,12 +62,13 @@ def test_upload_pdf_source(
     assert source["original_filename"] == "policy.pdf"
     assert source["content_type"] == "application/pdf"
     assert source["size_bytes"] == len(PDF_CONTENT)
-    assert source["status"] == "uploaded"
+    assert source["status"] == "ready"
 
     stored_files = list(document_storage_path.rglob("*.pdf"))
 
     assert len(stored_files) == 1
     assert stored_files[0].read_bytes() == PDF_CONTENT
+
 
 def test_list_corpus_sources(client: TestClient) -> None:
     agent = create_agent(client)
@@ -91,6 +92,7 @@ def test_list_corpus_sources(client: TestClient) -> None:
     assert response.status_code == 200
     assert response.json() == [source]
 
+
 def test_get_source(client: TestClient) -> None:
     agent = create_agent(client)
     corpus = create_corpus(client, str(agent["id"]))
@@ -113,6 +115,7 @@ def test_get_source(client: TestClient) -> None:
     assert response.status_code == 200
     assert response.json() == source
 
+
 def test_upload_rejects_invalid_pdf(client: TestClient) -> None:
     agent = create_agent(client)
     corpus = create_corpus(client, str(agent["id"]))
@@ -129,9 +132,8 @@ def test_upload_rejects_invalid_pdf(client: TestClient) -> None:
     )
 
     assert response.status_code == 400
-    assert response.json() == {
-        "detail": "Le fichier fourni n’est pas un PDF valide."
-    }
+    assert response.json() == {"detail": "Le fichier fourni n’est pas un PDF valide."}
+
 
 def test_upload_rejects_empty_file(client: TestClient) -> None:
     agent = create_agent(client)
@@ -151,6 +153,7 @@ def test_upload_rejects_empty_file(client: TestClient) -> None:
     assert response.status_code == 400
     assert response.json() == {"detail": "Le fichier est vide."}
 
+
 def test_upload_for_missing_corpus_returns_404(
     client: TestClient,
 ) -> None:
@@ -168,13 +171,13 @@ def test_upload_for_missing_corpus_returns_404(
     assert response.status_code == 404
     assert response.json() == {"detail": "Corpus introuvable."}
 
+
 def test_get_missing_source_returns_404(client: TestClient) -> None:
-    response = client.get(
-        "/api/sources/00000000-0000-0000-0000-000000000000"
-    )
+    response = client.get("/api/sources/00000000-0000-0000-0000-000000000000")
 
     assert response.status_code == 404
     assert response.json() == {"detail": "Source introuvable."}
+
 
 def test_upload_rejects_file_above_size_limit(
     client: TestClient,
@@ -199,3 +202,35 @@ def test_upload_rejects_file_above_size_limit(
     assert response.json() == {
         "detail": "Le fichier dépasse la taille maximale autorisée."
     }
+
+
+def test_upload_pdf_source_extracts_page_text(client: TestClient) -> None:
+    agent = create_agent(client)
+    corpus = create_corpus(client, str(agent["id"]))
+
+    upload_response = client.post(
+        f"/api/corpora/{corpus['id']}/sources/pdf",
+        files={
+            "file": (
+                "policy.pdf",
+                PDF_CONTENT,
+                "application/pdf",
+            )
+        },
+    )
+
+    source = upload_response.json()
+
+    response = client.get(f"/api/sources/{source['id']}/pages")
+
+    assert response.status_code == 200
+    assert response.json()[0]["source_id"] == source["id"]
+    assert response.json()[0]["page_number"] == 1
+    assert response.json()[0]["text"] == "Texte extrait du PDF de test."
+
+
+def test_list_missing_source_pages_returns_404(client: TestClient) -> None:
+    response = client.get("/api/sources/00000000-0000-0000-0000-000000000000/pages")
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Source introuvable."}
