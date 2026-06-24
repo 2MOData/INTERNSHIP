@@ -12,6 +12,7 @@ from app.document_storage import LocalDocumentStorage
 from app.main import app, get_pdf_source_service
 from app.source_repository import SourceRepository
 from app.source_service import PdfSourceService
+from app.pdf_extractor import ExtractedPdfPage
 
 test_engine = create_engine(
     "sqlite://",
@@ -56,6 +57,12 @@ def client(
                 repository=SourceRepository(session),
                 storage=LocalDocumentStorage(str(document_storage_path)),
                 max_upload_size_bytes=1024 * 1024,
+                pdf_extractor=lambda path: [
+                    ExtractedPdfPage(
+                        page_number=1,
+                        text="Texte extrait du PDF de test.",
+                    )
+                ],
             )
     app.dependency_overrides[get_database_session] = (
         override_database_session

@@ -17,7 +17,7 @@ from .schemas import CorpusCreate, CorpusRead
 
 from .config import get_settings
 from .document_storage import LocalDocumentStorage
-from .schemas import SourceRead
+from .schemas import SourcePageRead, SourceRead
 from .source_repository import (
     CorpusNotFoundForSourceError,
     SourceNotFoundError,
@@ -183,6 +183,23 @@ def get_source(
 ) -> SourceRead:
     try:
         return repository.get(source_id)
+    except SourceNotFoundError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Source introuvable.",
+        ) from error
+
+@app.get(
+    "/api/sources/{source_id}/pages",
+    response_model=list[SourcePageRead],
+    tags=["sources"],
+)
+def list_source_pages(
+    source_id: UUID,
+    repository: SourceRepository = Depends(get_source_repository),
+) -> list[SourcePageRead]:
+    try:
+        return repository.list_pages(source_id)
     except SourceNotFoundError as error:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

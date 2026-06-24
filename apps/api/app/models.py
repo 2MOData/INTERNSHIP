@@ -1,7 +1,14 @@
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import DateTime, ForeignKey, String, Text
+from sqlalchemy import (
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .database import Base
 
@@ -81,3 +88,26 @@ class SourceModel(Base):
     )
 
     corpus: Mapped["CorpusModel"] = relationship(back_populates="sources")
+    pages: Mapped[list["SourcePageModel"]] = relationship(
+        back_populates="source",
+        cascade="all, delete-orphan",
+        order_by="SourcePageModel.page_number",
+    )
+
+class SourcePageModel(Base):
+    __tablename__ = "source_pages"
+    __table_args__ = (UniqueConstraint("source_id", "page_number"),)
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    source_id: Mapped[UUID] = mapped_column(
+        ForeignKey("sources.id", ondelete="CASCADE"),
+        index=True,
+    )
+    page_number: Mapped[int] = mapped_column(Integer)
+    text: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+    )
+
+    source: Mapped["SourceModel"] = relationship(back_populates="pages")

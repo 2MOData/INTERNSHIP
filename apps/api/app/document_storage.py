@@ -19,3 +19,6 @@ class LocalDocumentStorage:
 
     def exists(self, storage_key: str) -> bool:
         return (self._root_path / storage_key).exists()
+    
+    def path_for(self, storage_key: str) -> Path:
+        return self._root_path / storage_key

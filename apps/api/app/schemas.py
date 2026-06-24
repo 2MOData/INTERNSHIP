@@ -71,3 +71,12 @@ class SourceRead(BaseModel):
     status: SourceStatus
     created_at: datetime
     updated_at: datetime
+
+class SourcePageRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    source_id: UUID
+    page_number: int
+    text: str
+    created_at: datetime
