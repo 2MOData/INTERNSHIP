@@ -263,45 +263,32 @@ Principe retenu :
 L'IA propose, notre plateforme autorise, n8n exécute.
 ```
 
-## 19. Étape à laquelle nous sommes arrivés
+## 19. Extraction du texte des PDF
 
-Nous sommes arrivés à l'étape suivante :
+L'étape d'extraction du texte des PDF a été réalisée avec un service Python isolé.
 
-```text
-Extraction du texte des PDF
-```
+Objectif de cette étape :
 
-L'étape précédente, upload PDF et sources documentaires, est considérée comme terminée.
+- ouvrir un PDF local ;
+- extraire le texte page par page ;
+- conserver le numéro de page ;
+- rejeter les PDF invalides ;
+- signaler les PDF sans texte extractible ;
+- tester le comportement sans encore dépendre du flux d'upload complet.
 
-La prochaine étape doit donc partir du PDF déjà uploadé et ajouter un service capable d'extraire le texte.
-
-## 20. Objectif de la prochaine étape
-
-À la fin de la prochaine étape :
-
-- un service Python pourra ouvrir un PDF ;
-- le texte sera extrait page par page ;
-- le numéro de page sera conservé ;
-- les erreurs seront contrôlées ;
-- les PDF invalides seront rejetés proprement ;
-- les PDF sans texte extractible seront signalés ;
-- les tests automatisés couvriront ces cas.
-
-Nous avons recommandé d'utiliser PyMuPDF, importé avec :
-
-```python
-import fitz
-```
-
-La dépendance à ajouter sera :
+La dépendance retenue est :
 
 ```text
 PyMuPDF>=1.26,<2
 ```
 
-## 21. Fichiers proposés pour la prochaine étape
+Le module utilise PyMuPDF via :
 
-Les fichiers à créer ou modifier seront probablement :
+```python
+import fitz
+```
+
+Les fichiers concernés étaient principalement :
 
 ```text
 apps/api/requirements.txt
@@ -309,61 +296,221 @@ apps/api/app/pdf_extractor.py
 apps/api/tests/test_pdf_extractor.py
 ```
 
-Le service d'extraction doit rester isolé au départ.
+Cette étape est considérée comme terminée.
 
-Il ne faut pas encore connecter directement l'extraction à la route d'upload tant que le service n'est pas testé seul.
+## 20. Connexion de l'extraction PDF à l'upload
 
-## 22. Flux attendu après la prochaine étape
+Après le service isolé, nous avons relié l'extraction au flux d'upload PDF.
 
-Le flux minimal de cette étape sera :
 
-```text
-PDF local
-  -> PyMuPDF
-  -> extraction page par page
-  -> résultat structuré
-  -> tests automatisés
-```
-
-Ensuite, à l'étape suivante, nous connecterons ce service à l'upload PDF existant :
+Le flux visé est devenu :
 
 ```text
 Upload PDF
-  -> stockage du fichier
-  -> création de source avec statut uploaded
+  -> stockage local du fichier
+  -> création d'une source PDF
   -> extraction du texte
-  -> enregistrement du texte extrait
-  -> statut processed ou failed
+  -> sauvegarde du texte page par page
+  -> statut ready ou error
 ```
 
-## 23. Prochaine branche recommandée
+Pour cela, nous avons ajouté une table de pages extraites :
 
-La branche recommandée pour reprendre est :
+```text
+source_pages
+```
+Cette table permet de conserver :
+
+- l'identifiant de la source ;
+- le numéro de page ;
+- le texte extrait ;
+- la date de création.
+
+Nous avons aussi ajouté un endpoint permettant de consulter les pages extraites d'une source :
+
+```text
+GET /api/sources/{source_id}/pages
+```
+
+Cette étape a introduit ou modifié notamment :
+
+```text
+apps/api/app/models.py
+apps/api/app/schemas.py
+apps/api/app/source_repository.py
+apps/api/app/source_service.py
+apps/api/app/main.py
+apps/api/app/document_storage.py
+apps/api/migrations/versions/9a2c0b7d4f6e_create_source_pages_table.py
+apps/api/tests/conftest.py
+apps/api/tests/test_sources.py
+```
+
+Cette étape est considérée comme terminée dans le plan fonctionnel.
+
+## 21. Changement de méthode de travail avec l'assistant
+
+Nous avons ensuite changé la façon de travailler avec l'assistant.
+
+Préférence retenue :
+
+- l'assistant ne modifie plus directement les fichiers du dépôt quand ce n'est pas nécessaire ;
+- l'assistant fournit plutôt les blocs de code à insérer ;
+- l'utilisateur applique les changements localement ;
+- l'utilisateur lance les tests ;
+- l'utilisateur fait lui-même les commits, pushs, Pull Requests et merges.
+
+Le format souhaité pour les prochaines étapes est donc :
+
+```text
+1. nom de la branche à créer ;
+2. fichiers à créer ou modifier ;
+3. blocs de code exacts à insérer ;
+4. commandes de test ;
+5. commandes git add / commit / push ;
+6. consignes de Pull Request ou de merge.
+```
+## 22. Découpage du texte extrait en chunks
+
+L'étape suivante réalisée avec succès a été le découpage du texte extrait en chunks.
+
+L'objectif était de préparer le futur RAG sans encore ajouter les embeddings ni pgvector.
+
+Le flux de cette étape est :
+
+```text
+source_pages
+  -> texte page par page
+  -> découpage en chunks
+  -> conservation du numéro de page
+  -> conservation de l'index du chunk
+```
+
+Le service de chunking reste isolé et ne persiste pas encore les chunks en base.
+
+Les fichiers proposés pour cette étape étaient :
+
+```text
+apps/api/app/text_chunker.py
+apps/api/tests/test_text_chunker.py
+```
+
+Le service introduit notamment les concepts suivants :
+
+- `SourcePageText` : représentation simple d'une page extraite ;
+- `TextChunk` : morceau de texte découpé ;
+- `max_chunk_size` : taille maximale d'un chunk ;
+- `chunk_overlap` : chevauchement entre deux chunks ;
+- validation de la configuration de chunking.
+
+Les tests couvraient notamment :
+
+- texte plus court que la taille maximale ;
+- normalisation des espaces ;
+- découpage avec overlap ;
+- texte vide ;
+- conservation des numéros de page ;
+- rejet des configurations invalides.
+
+Un premier échec de test a été corrigé : le texte choisi pour la deuxième page était plus long que `max_chunk_size`, donc il produisait plusieurs chunks alors que le test attendait un seul chunk. Le test a été corrigé avec un texte plus court, par exemple :
+
+```text
+Court.
+```
+
+Cette étape est la dernière étape considérée comme faite avec succès.
+
+## 23. Dernière limite rencontrée
+
+Nous avons ensuite commencé à préparer l'étape suivante : la persistance des chunks dans PostgreSQL avec une table `source_chunks`.
+
+Cependant, cette étape n'est pas encore considérée comme terminée.
+
+Des problèmes de tests ont été rencontrés autour de l'intégration entre :
+
+- `source_pages` ;
+- `source_chunks` ;
+- `SourceRepository` ;
+- les fixtures de test ;
+- la sauvegarde et la récupération des pages extraites.
+
+La dernière situation observée était :
+
+```text
+source.status == "ready"
+GET /api/sources/{source_id}/pages retourne []
+```
+
+
+Cela indique qu'une source pouvait être marquée `ready` sans que les pages extraites soient réellement retrouvées par les tests.
+
+
+Cette étape doit donc être reprise proprement plus tard, mais elle ne doit pas être considérée comme validée.
+
+## 24. Prochaine étape recommandée
+
+La prochaine étape doit être :
+
+```text
+Persister les chunks en base de données
+```
+
+Mais elle doit être reprise prudemment, en partant de la dernière base stable :
+
+```text
+PDF uploadé
+  -> texte extrait page par page
+  -> source_pages validé
+  -> text_chunker isolé validé
+```
+
+Objectif de la prochaine étape :
+
+- créer une table `source_chunks` ;
+- relier chaque chunk à une source et à une page source ;
+- ajouter une migration Alembic ;
+- ajouter un service de traitement des chunks persistés ;
+- ajouter un endpoint pour générer les chunks d'une source ;
+- ajouter un endpoint pour lister les chunks ;
+- tester d'abord le repository et le service de manière ciblée ;
+- ensuite seulement tester l'API complète.
+
+La branche recommandée sera :
 
 ```bash
 git switch main
 git pull
-git switch -c extract-pdf-text
+git switch -c persist-source-chunks
 ```
 
-Puis, une fois les fichiers ajoutés et les tests passés :
+Il faudra éviter de mélanger cette étape avec les embeddings ou pgvector.
 
-```bash
-git add apps/api/requirements.txt apps/api/app/pdf_extractor.py apps/api/tests/test_pdf_extractor.py
-git commit -m "feat: extract text from PDF documents"
-git push -u origin extract-pdf-text
-```
+## 25. Étapes futures après la persistance des chunks
 
-## 24. Principe à conserver pour la suite
+Une fois les chunks persistés et testés, les prochaines étapes probables seront :
+
+1. ajouter pgvector et une structure pour stocker les embeddings ;
+2. générer des embeddings pour les chunks ;
+3. ajouter une recherche vectorielle par corpus ;
+4. créer un endpoint de question/réponse sourcée ;
+5. construire l'interface frontend pour interroger un agent ;
+6. plus tard seulement, envisager des automatisations contrôlées.
+
+## 26. Principe à conserver pour la suite
 
 Nous devons continuer avec la même logique :
 
 - une branche par étape ;
 - une fonctionnalité limitée ;
 - des tests ciblés ;
-- un commit clair ;
-- un push ;
-- une Pull Request ;
-- puis retour sur `main` avant la prochaine étape.
+- correction des erreurs avant d'avancer ;
+- commit clair ;
+- push ;
+- Pull Request ou merge selon la méthode choisie par l'utilisateur ;
+- retour sur `main` avant la prochaine étape.
 
-Cette discipline est particulièrement importante maintenant que le projet entre dans la partie RAG, car les étapes vont devenir plus dépendantes les unes des autres.
+Le principe important reste :
+
+```text
+Ne pas passer à pgvector ou aux embeddings tant que les chunks persistés ne sont pas propres et testés.
+```
