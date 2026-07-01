@@ -93,6 +93,11 @@ class SourceModel(Base):
         cascade="all, delete-orphan",
         order_by="SourcePageModel.page_number",
     )
+    chunks: Mapped[list["SourceChunkModel"]] = relationship(
+        back_populates="source",
+        cascade="all, delete-orphan",
+        order_by="SourceChunkModel.page_number, SourceChunkModel.chunk_index",
+    )
 
 class SourcePageModel(Base):
     __tablename__ = "source_pages"
@@ -111,3 +116,29 @@ class SourcePageModel(Base):
     )
 
     source: Mapped["SourceModel"] = relationship(back_populates="pages")
+
+class SourceChunkModel(Base):
+    __tablename__ = "source_chunks"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_id",
+            "page_number",
+            "chunk_index",
+            name="uq_source_chunks_source_page_chunk",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    source_id: Mapped[UUID] = mapped_column(
+        ForeignKey("sources.id", ondelete="CASCADE"),
+        index=True,
+    )
+    page_number: Mapped[int] = mapped_column(Integer)
+    chunk_index: Mapped[int] = mapped_column(Integer)
+    text: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+    )
+
+    source: Mapped["SourceModel"] = relationship(back_populates="chunks")

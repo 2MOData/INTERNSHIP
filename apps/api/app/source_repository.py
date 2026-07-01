@@ -1,10 +1,11 @@
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from .models import CorpusModel, SourceModel, SourcePageModel
+from .models import CorpusModel, SourceChunkModel, SourceModel, SourcePageModel
 from .pdf_extractor import ExtractedPdfPage
+from .text_chunker import TextChunk
 
 
 class SourceNotFoundError(LookupError):
@@ -113,3 +114,47 @@ class SourceRepository:
     def _ensure_corpus_exists(self, corpus_id: UUID) -> None:
         if self._session.get(CorpusModel, corpus_id) is None:
             raise CorpusNotFoundForSourceError
+
+    def replace_chunks(
+        self,
+        *,
+        source_id: UUID,
+        chunks: list[TextChunk],
+    ) -> list[SourceChunkModel]:
+        self.get(source_id)
+
+        self._session.execute(
+            delete(SourceChunkModel).where(SourceChunkModel.source_id == source_id)
+        )
+
+        chunk_models = [
+            SourceChunkModel(
+                source_id=source_id,
+                page_number=chunk.page_number,
+                chunk_index=chunk.chunk_index,
+                text=chunk.text,
+            )
+            for chunk in chunks
+        ]
+
+        self._session.add_all(chunk_models)
+        self._session.commit()
+
+        for chunk_model in chunk_models:
+            self._session.refresh(chunk_model)
+
+        return chunk_models
+
+    def list_chunks(self, source_id: UUID) -> list[SourceChunkModel]:
+        self.get(source_id)
+
+        statement = (
+            select(SourceChunkModel)
+            .where(SourceChunkModel.source_id == source_id)
+            .order_by(
+                SourceChunkModel.page_number.asc(),
+                SourceChunkModel.chunk_index.asc(),
+            )
+        )
+
+        return list(self._session.scalars(statement))

@@ -38,6 +38,10 @@ def prepare_database() -> Generator[None, None, None]:
 def document_storage_path(tmp_path: Path) -> Path:
     return tmp_path / "documents"
 
+@pytest.fixture
+def test_session() -> Generator[Session, None, None]:
+    with TestSessionLocal() as session:
+        yield session
 
 @pytest.fixture
 def client(

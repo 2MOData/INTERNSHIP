@@ -17,7 +17,7 @@ from .schemas import CorpusCreate, CorpusRead
 
 from .config import get_settings
 from .document_storage import LocalDocumentStorage
-from .schemas import SourcePageRead, SourceRead
+from .schemas import SourceChunkRead, SourcePageRead, SourceRead
 from .source_repository import (
     CorpusNotFoundForSourceError,
     SourceNotFoundError,
@@ -28,6 +28,10 @@ from .source_service import (
     FileTooLargeError,
     InvalidPdfError,
     PdfSourceService,
+)
+from .source_chunk_service import (
+    SourceChunkService,
+    SourceHasNoExtractedPagesError,
 )
 
 app = FastAPI(
@@ -80,6 +84,11 @@ def get_pdf_source_service(
         storage=LocalDocumentStorage(settings.document_storage_path),
         max_upload_size_bytes=settings.max_upload_size_bytes,
     )
+
+def get_source_chunk_service(
+    repository: SourceRepository = Depends(get_source_repository),
+) -> SourceChunkService:
+    return SourceChunkService(repository=repository)
 
 app.add_middleware(
     CORSMiddleware,
@@ -306,3 +315,43 @@ def update_agent(
     except AgentNotFoundError as error:
         raise agent_not_found_http_exception() from error
 
+@app.post(
+    "/api/sources/{source_id}/chunks",
+    response_model=list[SourceChunkRead],
+    status_code=status.HTTP_201_CREATED,
+    tags=["sources"],
+)
+def generate_source_chunks(
+    source_id: UUID,
+    service: SourceChunkService = Depends(get_source_chunk_service),
+) -> list[SourceChunkRead]:
+    try:
+        return service.generate_for_source(source_id)
+    except SourceNotFoundError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Source introuvable.",
+        ) from error
+    except SourceHasNoExtractedPagesError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="La source ne contient aucune page extraite.",
+        ) from error
+
+
+@app.get(
+    "/api/sources/{source_id}/chunks",
+    response_model=list[SourceChunkRead],
+    tags=["sources"],
+)
+def list_source_chunks(
+    source_id: UUID,
+    repository: SourceRepository = Depends(get_source_repository),
+) -> list[SourceChunkRead]:
+    try:
+        return repository.list_chunks(source_id)
+    except SourceNotFoundError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Source introuvable.",
+        ) from error
