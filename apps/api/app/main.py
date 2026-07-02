@@ -33,6 +33,12 @@ from .source_chunk_service import (
     SourceChunkService,
     SourceHasNoExtractedPagesError,
 )
+from .chunk_embedding_repository import ChunkEmbeddingRepository
+from .embedding_client import MissingEmbeddingApiKeyError, OpenAIEmbeddingClient
+from .source_chunk_embedding_service import (
+    SourceChunkEmbeddingService,
+    SourceHasNoChunksError,
+)
 
 app = FastAPI(
     title="Domain-Specific Knowledge Agents API",
@@ -89,6 +95,21 @@ def get_source_chunk_service(
     repository: SourceRepository = Depends(get_source_repository),
 ) -> SourceChunkService:
     return SourceChunkService(repository=repository)
+
+def get_source_chunk_embedding_service(
+    session: Session = Depends(get_database_session),
+) -> SourceChunkEmbeddingService:
+    settings = get_settings()
+
+    return SourceChunkEmbeddingService(
+        source_repository=SourceRepository(session),
+        embedding_repository=ChunkEmbeddingRepository(session),
+        embedding_client=OpenAIEmbeddingClient(
+            api_key=settings.openai_api_key,
+            model=settings.embedding_model,
+            dimensions=settings.embedding_dimensions,
+        ),
+    )
 
 app.add_middleware(
     CORSMiddleware,
@@ -355,3 +376,34 @@ def list_source_chunks(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Source introuvable.",
         ) from error
+
+@app.post(
+    "/api/sources/{source_id}/embeddings",
+    status_code=status.HTTP_201_CREATED,
+    tags=["sources"],
+)
+def generate_source_chunk_embeddings(
+    source_id: UUID,
+    service: SourceChunkEmbeddingService = Depends(
+        get_source_chunk_embedding_service
+    ),
+) -> dict[str, int]:
+    try:
+        embeddings = service.generate_for_source(source_id)
+    except SourceNotFoundError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Source introuvable.",
+        ) from error
+    except SourceHasNoChunksError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="La source ne contient aucun chunk à vectoriser.",
+        ) from error
+    except MissingEmbeddingApiKeyError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="La clé API d'embedding n'est pas configurée.",
+        ) from error
+
+    return {"created": len(embeddings)}

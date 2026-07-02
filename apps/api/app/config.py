@@ -7,6 +7,9 @@ class Settings(BaseSettings):
     database_url: str
     document_storage_path: str = ".data/documents"
     max_upload_size_bytes: int = 10 * 1024 * 1024
+    openai_api_key: str | None = None
+    embedding_model: str = "text-embedding-3-small"
+    embedding_dimensions: int = 1536
 
     model_config = SettingsConfigDict(
         env_file=".env",
