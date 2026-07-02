@@ -7,6 +7,12 @@ import { CreateAgentForm } from './components/CreateAgentForm'
 import { useEffect, useState } from 'react'
 import './App.css'
 import { getApiHealth } from './api/health'
+import { askCorpusQuestion } from './api/answers'
+import type {
+  AskCorpusQuestionInput,
+  CorpusAnswerResponse,
+} from './api/answers'
+import { AskCorpusForm } from './components/AskCorpusForm'
 
 type ApiStatus = 'loading' | 'connected' | 'unavailable'
 
@@ -15,6 +21,9 @@ function App() {
   const [agents, setAgents] = useState<Agent[]>([])
   const [agentsError, setAgentsError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [answer, setAnswer] = useState<CorpusAnswerResponse | null>(null)
+  const [answerError, setAnswerError] = useState('')
+  const [isAnswering, setIsAnswering] = useState(false)
 
   useEffect(() => {
     getApiHealth()
@@ -38,6 +47,22 @@ function App() {
       throw new Error('Agent creation failed')
     } finally {
       setIsSubmitting(false)
+    }
+  }
+  async function handleAskCorpusQuestion(input: AskCorpusQuestionInput) {
+    setIsAnswering(true)
+    setAnswerError('')
+    setAnswer(null)
+
+    try {
+      const generatedAnswer = await askCorpusQuestion(input)
+      setAnswer(generatedAnswer)
+    } catch {
+      setAnswerError(
+        'Impossible de générer une réponse. Vérifiez le corpus et la configuration IA.',
+      )
+    } finally {
+      setIsAnswering(false)
     }
   }
   return (
@@ -101,6 +126,23 @@ function App() {
 
           <AgentList agents={agents} />
         </div>
+      </section>
+      <section className="answer-section" aria-labelledby="answer-title">
+        <div className="agents-section__header">
+          <div>
+            <p className="eyebrow">Réponse sourcée</p>
+            <h2 id="answer-title">Interroger un corpus</h2>
+          </div>
+
+          <p>RAG MVP</p>
+        </div>
+
+        <AskCorpusForm
+          answer={answer}
+          errorMessage={answerError}
+          isSubmitting={isAnswering}
+          onSubmit={handleAskCorpusQuestion}
+        />
       </section>
     </main>
   )
