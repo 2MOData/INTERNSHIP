@@ -6,3 +6,4 @@ pydantic-settings>=2.7,<3
 alembic>=1.14,<2
 python-multipart>=0.0.20,<1
 PyMuPDF>=1.26,<2
+pgvector>=0.4,<1

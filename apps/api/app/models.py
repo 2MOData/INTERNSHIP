@@ -1,3 +1,4 @@
+from pgvector.sqlalchemy import Vector
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
@@ -133,6 +134,11 @@ class SourceChunkModel(Base):
         ForeignKey("sources.id", ondelete="CASCADE"),
         index=True,
     )
+    embedding: Mapped["SourceChunkEmbeddingModel | None"] = relationship(
+        back_populates="chunk",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
     page_number: Mapped[int] = mapped_column(Integer)
     chunk_index: Mapped[int] = mapped_column(Integer)
     text: Mapped[str] = mapped_column(Text)
@@ -142,3 +148,27 @@ class SourceChunkModel(Base):
     )
 
     source: Mapped["SourceModel"] = relationship(back_populates="chunks")
+
+class SourceChunkEmbeddingModel(Base):
+    __tablename__ = "source_chunk_embeddings"
+    __table_args__ = (UniqueConstraint("chunk_id"),)
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    chunk_id: Mapped[UUID] = mapped_column(
+        ForeignKey("source_chunks.id", ondelete="CASCADE"),
+        index=True,
+    )
+    embedding_model: Mapped[str] = mapped_column(String(100))
+    embedding_dimensions: Mapped[int] = mapped_column(Integer)
+    embedding: Mapped[list[float]] = mapped_column(Vector(1536))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    chunk: Mapped["SourceChunkModel"] = relationship(back_populates="embedding")
