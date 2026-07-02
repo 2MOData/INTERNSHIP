@@ -7,17 +7,25 @@ from .database import get_database_session
 from fastapi.middleware.cors import CORSMiddleware
 
 from .repository import AgentNotFoundError, AgentRepository
-from .schemas import AgentCreate, AgentRead, AgentUpdate
 from .corpus_repository import (
     AgentNotFoundForCorpusError,
     CorpusNotFoundError,
     CorpusRepository,
 )
-from .schemas import CorpusCreate, CorpusRead
-
+from .schemas import (
+    AgentCreate,
+    AgentRead,
+    AgentUpdate,
+    CorpusCreate,
+    CorpusRead,
+    CorpusSearchRequest,
+    CorpusSearchResult,
+    SourceChunkRead,
+    SourcePageRead,
+    SourceRead,
+)
 from .config import get_settings
 from .document_storage import LocalDocumentStorage
-from .schemas import SourceChunkRead, SourcePageRead, SourceRead
 from .source_repository import (
     CorpusNotFoundForSourceError,
     SourceNotFoundError,
@@ -34,10 +42,19 @@ from .source_chunk_service import (
     SourceHasNoExtractedPagesError,
 )
 from .chunk_embedding_repository import ChunkEmbeddingRepository
-from .embedding_client import MissingEmbeddingApiKeyError, OpenAIEmbeddingClient
+from .embedding_client import (
+    EmbeddingProviderError,
+    MissingEmbeddingApiKeyError,
+    OpenAIEmbeddingClient,
+)
 from .source_chunk_embedding_service import (
     SourceChunkEmbeddingService,
     SourceHasNoChunksError,
+)
+from .corpus_search_service import CorpusSearchService
+from .vector_search_repository import (
+    CorpusNotFoundForSearchError,
+    VectorSearchRepository,
 )
 
 app = FastAPI(
@@ -110,6 +127,21 @@ def get_source_chunk_embedding_service(
             dimensions=settings.embedding_dimensions,
         ),
     )
+
+def get_corpus_search_service(
+    session: Session = Depends(get_database_session),
+) -> CorpusSearchService:
+    settings = get_settings()
+
+    return CorpusSearchService(
+        vector_search_repository=VectorSearchRepository(session),
+        embedding_client=OpenAIEmbeddingClient(
+            api_key=settings.openai_api_key,
+            model=settings.embedding_model,
+            dimensions=settings.embedding_dimensions,
+        ),
+    )
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -407,3 +439,35 @@ def generate_source_chunk_embeddings(
         ) from error
 
     return {"created": len(embeddings)}
+
+@app.post(
+    "/api/corpora/{corpus_id}/search",
+    response_model=list[CorpusSearchResult],
+    tags=["corpora"],
+)
+def search_corpus_chunks(
+    corpus_id: UUID,
+    search_request: CorpusSearchRequest,
+    service: CorpusSearchService = Depends(get_corpus_search_service),
+) -> list[CorpusSearchResult]:
+    try:
+        return service.search(
+            corpus_id=corpus_id,
+            query=search_request.query,
+            limit=search_request.limit,
+        )
+    except CorpusNotFoundForSearchError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Corpus introuvable.",
+        ) from error
+    except MissingEmbeddingApiKeyError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="La clé API d'embedding n'est pas configurée.",
+        ) from error
+    except EmbeddingProviderError as error:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Le fournisseur d'embedding a échoué.",
+        ) from error

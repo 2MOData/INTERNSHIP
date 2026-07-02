@@ -24,6 +24,10 @@ class OpenAIEmbeddingClient:
         self._model = model
         self._dimensions = dimensions
 
+    @property
+    def model(self) -> str:
+        return self._model
+
     def embed_text(self, text: str) -> list[float]:
         normalized_text = " ".join(text.split())
 

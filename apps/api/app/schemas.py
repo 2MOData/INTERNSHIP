@@ -90,3 +90,16 @@ class SourceChunkRead(BaseModel):
     chunk_index: int
     text: str
     created_at: datetime
+
+class CorpusSearchRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=1000)
+    limit: int = Field(default=5, ge=1, le=20)
+
+
+class CorpusSearchResult(BaseModel):
+    chunk_id: UUID
+    source_id: UUID
+    page_number: int
+    chunk_index: int
+    text: str
+    score: float
