@@ -103,3 +103,20 @@ class CorpusSearchResult(BaseModel):
     chunk_index: int
     text: str
     score: float
+
+class CorpusAnswerRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=1000)
+    limit: int = Field(default=5, ge=1, le=20)
+
+
+class CorpusAnswerSourceRead(BaseModel):
+    chunk_id: UUID
+    source_id: UUID
+    page_number: int
+    text: str
+    score: float
+
+
+class CorpusAnswerResponse(BaseModel):
+    answer: str
+    sources: list[CorpusAnswerSourceRead]

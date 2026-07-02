@@ -23,6 +23,9 @@ from .schemas import (
     SourceChunkRead,
     SourcePageRead,
     SourceRead,
+    CorpusAnswerRequest,
+    CorpusAnswerResponse,
+    CorpusAnswerSourceRead,
 )
 from .config import get_settings
 from .document_storage import LocalDocumentStorage
@@ -56,6 +59,12 @@ from .vector_search_repository import (
     CorpusNotFoundForSearchError,
     VectorSearchRepository,
 )
+from .openai_answer_adapter import (
+    AnswerGenerationError,
+    MissingAnswerGenerationApiKeyError,
+    OpenAIAnswerGenerationAdapter,
+)
+from .rag_answer_service import NoRelevantContextError, RagAnswerService
 
 app = FastAPI(
     title="Domain-Specific Knowledge Agents API",
@@ -142,6 +151,27 @@ def get_corpus_search_service(
         ),
     )
 
+def get_rag_answer_service(
+    session: Session = Depends(get_database_session),
+) -> RagAnswerService:
+    settings = get_settings()
+
+    corpus_search_service = CorpusSearchService(
+        vector_search_repository=VectorSearchRepository(session),
+        embedding_client=OpenAIEmbeddingClient(
+            api_key=settings.openai_api_key,
+            model=settings.embedding_model,
+            dimensions=settings.embedding_dimensions,
+        ),
+    )
+
+    return RagAnswerService(
+        corpus_search_service=corpus_search_service,
+        answer_generation_client=OpenAIAnswerGenerationAdapter(
+            api_key=settings.openai_api_key,
+            model=settings.answer_model,
+        ),
+    )
 
 app.add_middleware(
     CORSMiddleware,
@@ -471,3 +501,54 @@ def search_corpus_chunks(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Le fournisseur d'embedding a échoué.",
         ) from error
+
+@app.post(
+    "/api/corpora/{corpus_id}/answer",
+    response_model=CorpusAnswerResponse,
+    tags=["corpora"],
+)
+def answer_corpus_question(
+    corpus_id: UUID,
+    answer_request: CorpusAnswerRequest,
+    service: RagAnswerService = Depends(get_rag_answer_service),
+) -> CorpusAnswerResponse:
+    try:
+        rag_answer = service.answer(
+            corpus_id=corpus_id,
+            question=answer_request.question,
+            limit=answer_request.limit,
+        )
+    except CorpusNotFoundForSearchError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Corpus introuvable.",
+        ) from error
+    except NoRelevantContextError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Aucun contexte pertinent trouvé.",
+        ) from error
+    except (MissingEmbeddingApiKeyError, MissingAnswerGenerationApiKeyError) as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="La clé API du fournisseur IA n'est pas configurée.",
+        ) from error
+    except (EmbeddingProviderError, AnswerGenerationError) as error:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Le fournisseur IA a échoué.",
+        ) from error
+
+    return CorpusAnswerResponse(
+        answer=rag_answer.answer,
+        sources=[
+            CorpusAnswerSourceRead(
+                chunk_id=source.chunk_id,
+                source_id=source.source_id,
+                page_number=source.page_number,
+                text=source.text,
+                score=source.score,
+            )
+            for source in rag_answer.sources
+        ],
+    )
