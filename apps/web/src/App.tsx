@@ -16,6 +16,7 @@ import { AskCorpusForm } from './components/AskCorpusForm'
 import { listAgentCorpora } from './api/corpora'
 import type { Corpus } from './api/corpora'
 import { CorpusList } from './components/CorpusList'
+import { SourceUploadPanel } from './components/SourceUploadPanel'
 
 type ApiStatus = 'loading' | 'connected' | 'unavailable'
 
@@ -180,6 +181,9 @@ function App() {
           )}
         </div>
       </section>
+
+      <SourceUploadPanel selectedCorpusId={selectedCorpusId} />
+      
       <section className="answer-section" aria-labelledby="answer-title">
         <div className="agents-section__header">
           <div>
