@@ -416,3 +416,60 @@
     grid-template-columns: 1fr;
   }
 }
+
+.agent-card--button,
+.corpus-card {
+  width: 100%;
+  border: 1px solid #dfe5ee;
+  text-align: left;
+  cursor: pointer;
+}
+
+.agent-card--button:hover,
+.corpus-card:hover {
+  border-color: #6366f1;
+}
+
+.agent-card--selected,
+.corpus-card--selected {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px #c7d2fe;
+}
+
+.corpus-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.corpus-list {
+  display: grid;
+  gap: 14px;
+}
+
+.corpus-card {
+  padding: 18px;
+  border-radius: 16px;
+  background: #ffffff;
+  color: inherit;
+  font: inherit;
+}
+
+.corpus-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 10px;
+}
+
+.corpus-card__header span {
+  color: #6366f1;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.corpus-card p {
+  margin: 0;
+  color: #687487;
+  line-height: 1.6;
+}

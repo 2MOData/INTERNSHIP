@@ -13,6 +13,9 @@ import type {
   CorpusAnswerResponse,
 } from './api/answers'
 import { AskCorpusForm } from './components/AskCorpusForm'
+import { listAgentCorpora } from './api/corpora'
+import type { Corpus } from './api/corpora'
+import { CorpusList } from './components/CorpusList'
 
 type ApiStatus = 'loading' | 'connected' | 'unavailable'
 
@@ -24,6 +27,11 @@ function App() {
   const [answer, setAnswer] = useState<CorpusAnswerResponse | null>(null)
   const [answerError, setAnswerError] = useState('')
   const [isAnswering, setIsAnswering] = useState(false)
+  const [selectedAgentId, setSelectedAgentId] = useState('')
+  const [corpora, setCorpora] = useState<Corpus[]>([])
+  const [corporaError, setCorporaError] = useState('')
+  const [isLoadingCorpora, setIsLoadingCorpora] = useState(false)
+  const [selectedCorpusId, setSelectedCorpusId] = useState('')
 
   useEffect(() => {
     getApiHealth()
@@ -63,6 +71,27 @@ function App() {
       )
     } finally {
       setIsAnswering(false)
+    }
+  }
+
+  async function handleSelectAgent(agentId: string) {
+    setSelectedAgentId(agentId)
+    setSelectedCorpusId('')
+    setCorpora([])
+    setCorporaError('')
+    setIsLoadingCorpora(true)
+
+    try {
+      const agentCorpora = await listAgentCorpora(agentId)
+      setCorpora(agentCorpora)
+
+      if (agentCorpora.length > 0) {
+        setSelectedCorpusId(agentCorpora[0].id)
+      }
+    } catch {
+      setCorporaError('Impossible de charger les corpus de cet agent.')
+    } finally {
+      setIsLoadingCorpora(false)
     }
   }
   return (
@@ -124,7 +153,31 @@ function App() {
             onSubmit={handleCreateAgent}
           />
 
-          <AgentList agents={agents} />
+          <AgentList
+            agents={agents}
+            selectedAgentId={selectedAgentId}
+            onSelectAgent={handleSelectAgent}
+          />
+        </div>
+        <div className="corpus-panel">
+          <p className="eyebrow">Corpus de l’agent sélectionné</p>
+
+          {corporaError && <p className="error-message">{corporaError}</p>}
+
+          {!selectedAgentId && (
+            <p className="empty-state">
+              Sélectionnez un agent pour afficher ses corpus.
+            </p>
+          )}
+
+          {selectedAgentId && (
+            <CorpusList
+              corpora={corpora}
+              isLoading={isLoadingCorpora}
+              selectedCorpusId={selectedCorpusId}
+              onSelectCorpus={setSelectedCorpusId}
+            />
+          )}
         </div>
       </section>
       <section className="answer-section" aria-labelledby="answer-title">
@@ -141,6 +194,7 @@ function App() {
           answer={answer}
           errorMessage={answerError}
           isSubmitting={isAnswering}
+          selectedCorpusId={selectedCorpusId}
           onSubmit={handleAskCorpusQuestion}
         />
       </section>

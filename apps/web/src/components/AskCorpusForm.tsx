@@ -9,41 +9,38 @@ interface AskCorpusFormProps {
   answer: CorpusAnswerResponse | null
   errorMessage: string
   isSubmitting: boolean
+  selectedCorpusId: string
   onSubmit: (input: AskCorpusQuestionInput) => Promise<void>
-}
-
-const initialForm: AskCorpusQuestionInput = {
-  corpusId: '',
-  question: '',
-  limit: 5,
 }
 
 export function AskCorpusForm({
   answer,
   errorMessage,
   isSubmitting,
+  selectedCorpusId,
   onSubmit,
 }: AskCorpusFormProps) {
-  const [form, setForm] = useState<AskCorpusQuestionInput>(initialForm)
+  const [question, setQuestion] = useState('')
+  const [limit, setLimit] = useState(5)
 
   async function handleSubmit(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault()
 
-    await onSubmit(form)
+    await onSubmit({
+      corpusId: selectedCorpusId,
+      question,
+      limit,
+    })
   }
 
   return (
     <div className="answer-workspace">
       <form className="answer-form" onSubmit={handleSubmit}>
         <label>
-          Identifiant du corpus
+          Corpus sélectionné
           <input
-            required
-            value={form.corpusId}
-            onChange={(event) =>
-              setForm({ ...form, corpusId: event.target.value })
-            }
-            placeholder="Collez ici le corpus_id"
+            readOnly
+            value={selectedCorpusId || 'Aucun corpus sélectionné'}
           />
         </label>
 
@@ -53,10 +50,8 @@ export function AskCorpusForm({
             required
             minLength={3}
             maxLength={1000}
-            value={form.question}
-            onChange={(event) =>
-              setForm({ ...form, question: event.target.value })
-            }
+            value={question}
+            onChange={(event) => setQuestion(event.target.value)}
             placeholder="Posez une question à partir des documents du corpus."
           />
         </label>
@@ -68,14 +63,12 @@ export function AskCorpusForm({
             min={1}
             max={20}
             type="number"
-            value={form.limit}
-            onChange={(event) =>
-              setForm({ ...form, limit: Number(event.target.value) })
-            }
+            value={limit}
+            onChange={(event) => setLimit(Number(event.target.value))}
           />
         </label>
 
-        <button type="submit" disabled={isSubmitting}>
+        <button type="submit" disabled={isSubmitting || !selectedCorpusId}>
           {isSubmitting ? 'Recherche…' : 'Poser la question'}
         </button>
       </form>
@@ -85,7 +78,7 @@ export function AskCorpusForm({
 
         {!answer && !errorMessage && (
           <p className="empty-state">
-            La réponse sourcée apparaîtra ici après votre question.
+            Sélectionnez un corpus puis posez une question.
           </p>
         )}
 
