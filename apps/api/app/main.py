@@ -26,6 +26,7 @@ from .schemas import (
     CorpusAnswerRequest,
     CorpusAnswerResponse,
     CorpusAnswerSourceRead,
+    IndexedSourceRead,
 )
 from .config import get_settings
 from .document_storage import LocalDocumentStorage
@@ -65,6 +66,7 @@ from .openai_answer_adapter import (
     OpenAIAnswerGenerationAdapter,
 )
 from .rag_answer_service import NoRelevantContextError, RagAnswerService
+from .source_indexing_service import PdfSourceIndexingService
 
 app = FastAPI(
     title="Domain-Specific Knowledge Agents API",
@@ -170,6 +172,33 @@ def get_rag_answer_service(
         answer_generation_client=OpenAIAnswerGenerationAdapter(
             api_key=settings.openai_api_key,
             model=settings.answer_model,
+        ),
+    )
+
+def get_pdf_source_indexing_service(
+    session: Session = Depends(get_database_session),
+) -> PdfSourceIndexingService:
+    settings = get_settings()
+
+    source_repository = SourceRepository(session)
+
+    return PdfSourceIndexingService(
+        pdf_source_service=PdfSourceService(
+            repository=source_repository,
+            storage=LocalDocumentStorage(settings.document_storage_path),
+            max_upload_size_bytes=settings.max_upload_size_bytes,
+        ),
+        source_chunk_service=SourceChunkService(
+            repository=source_repository,
+        ),
+        source_chunk_embedding_service=SourceChunkEmbeddingService(
+            source_repository=source_repository,
+            embedding_repository=ChunkEmbeddingRepository(session),
+            embedding_client=OpenAIEmbeddingClient(
+                api_key=settings.openai_api_key,
+                model=settings.embedding_model,
+                dimensions=settings.embedding_dimensions,
+            ),
         ),
     )
 
@@ -551,4 +580,75 @@ def answer_corpus_question(
             )
             for source in rag_answer.sources
         ],
+    )
+
+@app.post(
+    "/api/corpora/{corpus_id}/sources/pdf/index",
+    response_model=IndexedSourceRead,
+    status_code=status.HTTP_201_CREATED,
+    tags=["sources"],
+)
+async def upload_and_index_pdf_source(
+    corpus_id: UUID,
+    file: UploadFile = File(...),
+    service: PdfSourceIndexingService = Depends(
+        get_pdf_source_indexing_service
+    ),
+) -> IndexedSourceRead:
+    content = await file.read()
+
+    try:
+        result = service.upload_and_index(
+            corpus_id=corpus_id,
+            original_filename=file.filename or "document.pdf",
+            content_type=file.content_type or "",
+            content=content,
+        )
+    except CorpusNotFoundForSourceError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Corpus introuvable.",
+        ) from error
+    except EmptyFileError as error:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Le fichier est vide.",
+        ) from error
+    except FileTooLargeError as error:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="Le fichier dépasse la taille maximale autorisée.",
+        ) from error
+    except InvalidPdfError as error:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Le fichier fourni n’est pas un PDF valide.",
+        ) from error
+    except SourceHasNoExtractedPagesError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="La source ne contient aucune page extraite.",
+        ) from error
+    except SourceHasNoChunksError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="La source ne contient aucun chunk à vectoriser.",
+        ) from error
+    except MissingEmbeddingApiKeyError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="La clé API d'embedding n'est pas configurée.",
+        ) from error
+    except EmbeddingProviderError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(error),
+        ) from error
+    finally:
+        await file.close()
+
+    return IndexedSourceRead(
+        source=result.source,
+        chunks_created=result.chunks_created,
+        embeddings_created=result.embeddings_created,
     )

@@ -120,3 +120,8 @@ class CorpusAnswerSourceRead(BaseModel):
 class CorpusAnswerResponse(BaseModel):
     answer: str
     sources: list[CorpusAnswerSourceRead]
+
+class IndexedSourceRead(BaseModel):
+    source: SourceRead
+    chunks_created: int
+    embeddings_created: int
