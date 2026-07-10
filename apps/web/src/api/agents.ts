@@ -46,3 +46,13 @@ export async function createAgent(
 
   return response.json() as Promise<Agent>
 }
+
+export async function deleteAgent(agentId: string): Promise<void> {
+  const response = await fetch(`${API_URL}/api/agents/${agentId}`, {
+    method: 'DELETE',
+  })
+
+  if (!response.ok) {
+    throw new Error(`Agent deletion failed with status ${response.status}`)
+  }
+}

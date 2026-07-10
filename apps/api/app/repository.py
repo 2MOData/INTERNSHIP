@@ -62,3 +62,10 @@ class AgentRepository:
         self._session.refresh(agent)
 
         return agent
+
+    def delete(self, agent_id: UUID) -> None:
+        agent = self.get(agent_id)
+
+        self._session.delete(agent)
+        self._session.commit()
+        

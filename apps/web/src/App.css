@@ -664,3 +664,37 @@
   color: #1d4ed8;
   font-weight: 700;
 }
+
+.agent-card {
+  display: grid;
+  gap: 14px;
+}
+
+.agent-card__select {
+  width: 100%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.agent-card__delete {
+  justify-self: start;
+  border: 0;
+  border-radius: 10px;
+  padding: 9px 12px;
+  background: #fee2e2;
+  color: #991b1b;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.agent-card__delete:hover {
+  background: #fecaca;
+}
+

@@ -1,4 +1,4 @@
-import { createAgent, listAgents } from './api/agents'
+import { createAgent, deleteAgent, listAgents } from './api/agents'
 import type { Agent, CreateAgentInput } from './api/agents'
 
 import { AgentList } from './components/AgentList'
@@ -97,6 +97,36 @@ function App() {
       setWorkspaceProgress('')
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  async function handleDeleteAgent(agentId: string) {
+    const confirmed = window.confirm(
+      'Supprimer cet agent et ses corpus associés ?',
+    )
+
+    if (!confirmed) {
+      return
+    }
+
+    setAgentsError('')
+
+    try {
+      await deleteAgent(agentId)
+
+      setAgents((currentAgents) =>
+        currentAgents.filter((agent) => agent.id !== agentId),
+      )
+
+      if (selectedAgentId === agentId) {
+        setSelectedAgentId('')
+        setSelectedCorpusId('')
+        setCorpora([])
+        setAnswer(null)
+        setAnswerError('')
+      }
+    } catch {
+      setAgentsError('Impossible de supprimer l’agent.')
     }
   }
   async function handleAskCorpusQuestion(input: AskCorpusQuestionInput) {
@@ -200,6 +230,7 @@ function App() {
             agents={agents}
             selectedAgentId={selectedAgentId}
             onSelectAgent={handleSelectAgent}
+            onDeleteAgent={handleDeleteAgent}
           />
         </div>
         <div className="corpus-panel">

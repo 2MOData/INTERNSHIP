@@ -427,6 +427,22 @@ def update_agent(
     except AgentNotFoundError as error:
         raise agent_not_found_http_exception() from error
 
+
+@app.delete(
+    "/api/agents/{agent_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    tags=["agents"],
+)
+def delete_agent(
+    agent_id: UUID,
+    repository: AgentRepository = Depends(get_agent_repository),
+) -> None:
+    try:
+        repository.delete(agent_id)
+    except AgentNotFoundError as error:
+        raise agent_not_found_http_exception() from error
+
+        
 @app.post(
     "/api/sources/{source_id}/chunks",
     response_model=list[SourceChunkRead],

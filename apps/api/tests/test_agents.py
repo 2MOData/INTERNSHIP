@@ -139,3 +139,38 @@ def test_update_agent_rejects_invalid_language(
     )
 
     assert response.status_code == 422
+
+
+def test_delete_agent(client) -> None:
+    create_response = client.post(
+        "/api/agents",
+        json={
+            "name": "Agent à supprimer",
+            "description": "Sera supprimé.",
+            "use_case": "Tester la suppression",
+            "language": "fr",
+        },
+    )
+
+    assert create_response.status_code == 201
+
+    agent = create_response.json()
+
+    delete_response = client.delete(f"/api/agents/{agent['id']}")
+
+    assert delete_response.status_code == 204
+    assert delete_response.content == b""
+
+    get_response = client.get(f"/api/agents/{agent['id']}")
+
+    assert get_response.status_code == 404
+    assert get_response.json() == {"detail": "Agent introuvable."}
+
+
+def test_delete_missing_agent_returns_404(client) -> None:
+    response = client.delete(
+        "/api/agents/00000000-0000-0000-0000-000000000000"
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Agent introuvable."}
