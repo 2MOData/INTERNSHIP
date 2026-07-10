@@ -73,3 +73,32 @@ export async function generateSourceEmbeddings(
 
   return response.json() as Promise<EmbeddingGenerationResult>
 }
+
+
+export interface IndexedSourceResult {
+  source: Source
+  chunks_created: number
+  embeddings_created: number
+}
+
+export async function uploadAndIndexPdfSource(
+  corpusId: string,
+  file: File,
+): Promise<IndexedSourceResult> {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const response = await fetch(
+    `${API_URL}/api/corpora/${corpusId}/sources/pdf/index`,
+    {
+      method: 'POST',
+      body: formData,
+    },
+  )
+
+  if (!response.ok) {
+    throw new Error(`PDF indexing failed with status ${response.status}`)
+  }
+
+  return response.json() as Promise<IndexedSourceResult>
+}

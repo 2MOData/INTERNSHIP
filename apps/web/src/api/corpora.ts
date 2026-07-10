@@ -10,6 +10,11 @@ export interface Corpus {
   updated_at: string
 }
 
+export interface CreateCorpusInput {
+  name: string
+  description: string
+}
+
 const API_URL = 'http://localhost:8000'
 
 export async function listAgentCorpora(agentId: string): Promise<Corpus[]> {
@@ -20,4 +25,23 @@ export async function listAgentCorpora(agentId: string): Promise<Corpus[]> {
   }
 
   return response.json() as Promise<Corpus[]>
+}
+
+export async function createAgentCorpus(
+  agentId: string,
+  corpusInput: CreateCorpusInput,
+): Promise<Corpus> {
+  const response = await fetch(`${API_URL}/api/agents/${agentId}/corpora`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(corpusInput),
+  })
+
+  if (!response.ok) {
+    throw new Error(`Corpus creation failed with status ${response.status}`)
+  }
+
+  return response.json() as Promise<Corpus>
 }

@@ -2,7 +2,11 @@ import { createAgent, listAgents } from './api/agents'
 import type { Agent, CreateAgentInput } from './api/agents'
 
 import { AgentList } from './components/AgentList'
-import { CreateAgentForm } from './components/CreateAgentForm'
+import { CreateAgentWorkspaceForm } from './components/CreateAgentWorkspaceForm'
+import type { CreateAgentWorkspaceInput } from './components/CreateAgentWorkspaceForm'
+
+import { createAgentCorpus } from './api/corpora'
+import { uploadAndIndexPdfSource } from './api/sources'
 
 import { useEffect, useState } from 'react'
 import './App.css'
@@ -33,6 +37,7 @@ function App() {
   const [corporaError, setCorporaError] = useState('')
   const [isLoadingCorpora, setIsLoadingCorpora] = useState(false)
   const [selectedCorpusId, setSelectedCorpusId] = useState('')
+  const [workspaceProgress, setWorkspaceProgress] = useState('')
 
   useEffect(() => {
     getApiHealth()
@@ -44,16 +49,52 @@ function App() {
       .catch(() => setAgentsError('Impossible de charger les agents.'))
   }, [])
 
-  async function handleCreateAgent(agentInput: CreateAgentInput) {
+  async function handleCreateAgentWorkspace(
+    workspaceInput: CreateAgentWorkspaceInput,
+  ) {
     setIsSubmitting(true)
     setAgentsError('')
+    setWorkspaceProgress('Création de l’agent…')
 
     try {
-      const createdAgent = await createAgent(agentInput)
+      const createdAgent = await createAgent(workspaceInput.agent)
+
       setAgents((currentAgents) => [...currentAgents, createdAgent])
+      setSelectedAgentId(createdAgent.id)
+
+      const createdCorpora: Corpus[] = []
+
+      for (const corpusInput of workspaceInput.corpora) {
+        setWorkspaceProgress(`Création du corpus "${corpusInput.name}"…`)
+
+        const createdCorpus = await createAgentCorpus(createdAgent.id, {
+          name: corpusInput.name,
+          description: corpusInput.description,
+        })
+
+        createdCorpora.push(createdCorpus)
+
+        for (const file of corpusInput.files) {
+          setWorkspaceProgress(
+            `Upload et indexation de "${file.name}" dans "${createdCorpus.name}"…`,
+          )
+
+          await uploadAndIndexPdfSource(createdCorpus.id, file)
+        }
+      }
+
+      setCorpora(createdCorpora)
+
+      if (createdCorpora.length > 0) {
+        setSelectedCorpusId(createdCorpora[0].id)
+      }
+
+      setWorkspaceProgress('Agent, corpus et documents créés avec succès.')
     } catch {
-      setAgentsError('Impossible de créer l’agent.')
-      throw new Error('Agent creation failed')
+      setAgentsError(
+        'Impossible de créer l’agent complet ou d’indexer les documents.',
+      )
+      setWorkspaceProgress('')
     } finally {
       setIsSubmitting(false)
     }
@@ -149,9 +190,10 @@ function App() {
         {agentsError && <p className="error-message">{agentsError}</p>}
 
         <div className="agents-workspace">
-          <CreateAgentForm
+          <CreateAgentWorkspaceForm
             isSubmitting={isSubmitting}
-            onSubmit={handleCreateAgent}
+            progressMessage={workspaceProgress}
+            onSubmit={handleCreateAgentWorkspace}
           />
 
           <AgentList
